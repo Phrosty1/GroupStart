@@ -1,6 +1,11 @@
 GroupStart = {}
 local ADDON_NAME = "GroupStart"
+local verbose = true
+local function Log(...)
+   if verbose and AnyAltLogger then AnyAltLogger:Log(ADDON_NAME, ...) end
+end
 local lstAlwaysAccept = {"@Samantha.C", "@Tommy.C", "@Jenniami", "@Phrosty1"}
+local playerDispName = GetUnitDisplayName("player")
 local lstDungeonsByName = {}
 local lstDungeonsByNode = {}
 local function BuildDestinationList()
@@ -40,6 +45,7 @@ local function BuildDestinationList()
    lstDungeonsByName["DC"]    = lstDungeonsByName["Dungeon: Darkshade Caverns I"]
    lstDungeonsByName["EH"]    = lstDungeonsByName["Dungeon: Elden Hollow I"]
    lstDungeonsByName["FG"]    = lstDungeonsByName["Dungeon: Fungal Grotto I"]
+   lstDungeonsByName["SC"]    = lstDungeonsByName["Dungeon: Spindleclutch I"]
    lstDungeonsByName["SP"]    = lstDungeonsByName["Dungeon: Spindleclutch I"]
    lstDungeonsByName["CA"]    = lstDungeonsByName["Dungeon: City of Ash I"]
    lstDungeonsByName["COA"]   = lstDungeonsByName["Dungeon: City of Ash I"]
@@ -66,23 +72,32 @@ local function GetFirstNodeFromList(lstNodes)
    end
 end
 local function GetRandomNodeFromList(lstNodes)
+   Log("GetRandomNodeFromList",lstNodes)
    local keyset = {}
    for k in pairs(lstNodes) do
       table.insert(keyset, k)
    end
    local cntOptions = #keyset
-   if cntOptions > 0 then
-      local nodeIndex = keyset[math.random(cntOptions)]
+   Log("GetRandomNodeFromList","cntOptions",cntOptions,"keyset",keyset)
+   local nodeIndex
+   if cntOptions > 1 then
+      local rnd = math.random(cntOptions)
+      nodeIndex = keyset[rnd]
       d("Choosing from:")
       for k, v in ipairs(keyset) do
          d(tostring(k).." - "..tostring(lstDungeonsByNode[v]))
       end
+      Log("GetRandomNodeFromList","rnd",rnd,"nodeIndex",nodeIndex)
+   elseif cntOptions == 1 then
+      nodeIndex = keyset[1]
    end
    return nodeIndex
 end
 local function FindNodesByName(txt)
+   Log("FindNodesByName",txt,lstDungeonsByName)
    txt = string.upper(txt or "")
    local nodeFound = lstDungeonsByName[txt]
+   Log("FindNodesByName",txt,nodeFound)
    if nodeFound then return {[nodeFound] = nodeFound} end
    txt = string.gsub(txt, " ", "")
    nodeFound = lstDungeonsByName[txt]
@@ -125,12 +140,14 @@ local doSendInvitesWhenLanded = false
 local lstPendingInvites = {}
 local function GeneratePendingInvites()
    -- * JumpToGroupMember(*string* _characterOrDisplayName_)
+   Log("GeneratePendingInvites",playerDispName,lstAlwaysAccept)
    lstPendingInvites = {}
    for _, autoAcceptPartyName in pairs(lstAlwaysAccept) do
       if not IsPlayerInGroup(autoAcceptPartyName) then -- * IsPlayerInGroup(*string* _characterOrDisplayName_) ** _Returns:_ *bool* _inGroup_
          lstPendingInvites[autoAcceptPartyName] = true
       end
    end
+   lstPendingInvites[playerDispName] = nil
    local numFriends = GetNumFriends()
    for j = 0, numFriends do
       local invitee, note, playerStatus, secsSinceLogoff = GetFriendInfo(j)
@@ -138,6 +155,7 @@ local function GeneratePendingInvites()
    end
 end
 local function SendInvites()
+   Log("SendInvites",lstPendingInvites)
    local txtRecipient = ""
    for invitee, _ in pairs(lstPendingInvites) do
       if IsPlayerInGroup(invitee) then lstPendingInvites[invitee] = nil else txtRecipient = invitee end
@@ -159,8 +177,8 @@ local function OnActivityFinderStatusChange(eventCode, result)
       SendInvites()
    end
 end
-local function StartNormal(location)
-   if PlayerHasGroupControl() then SetVeteranDifficulty(true) end
+local function FindAndTravel(location)
+   Log("FindAndTravel",location)
    local destNodeIndex, destNodeName = GetRandomNodeFromList(FindNodesByName(location))
    local destNodeName = lstDungeonsByNode[destNodeIndex]
    if destNodeIndex then
@@ -168,29 +186,27 @@ local function StartNormal(location)
       doSendInvitesWhenLanded = true
       FastTravelToNode(destNodeIndex)
    else
+      Log("Could not determine destination")
       d("Could not determine destination")
    end
+end
+local function StartNormal(location)
+   Log("StartNormal",location)
+   if PlayerHasGroupControl() then SetVeteranDifficulty(false) end
+   FindAndTravel(location)
 end
 local function StartVeteran(location)
+   Log("StartVeteran",location)
    if PlayerHasGroupControl() then SetVeteranDifficulty(true) end
-   local destNodeIndex, destNodeName = GetRandomNodeFromList(FindNodesByName(location))
-   local destNodeName = lstDungeonsByNode[destNodeIndex]
-   if destNodeIndex then
-      d("Traveling to "..destNodeName)
-      doSendInvitesWhenLanded = true
-      FastTravelToNode(destNodeIndex)
-   else
-      d("Could not determine destination")
-   end
+   FindAndTravel(location)
 end
 
-
 function GroupStart:Initialize()
+   BuildDestinationList()
    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_GROUP_INVITE_RECEIVED, OnGroupInviteReceived)
    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ACTIVITY_FINDER_STATUS_UPDATE, OnActivityFinderStatusChange)
    SLASH_COMMANDS["/gsn"] = StartNormal
    SLASH_COMMANDS["/gsv"] = StartVeteran
-
 end
 
 -- Then we create an event handler function which will be called when the "addon loaded" event
@@ -201,4 +217,3 @@ end
 
 -- Finally, we'll register our event handler function to be called when the proper event occurs.
 EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, GroupStart.OnAddOnLoaded)
-
