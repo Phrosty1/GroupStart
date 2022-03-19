@@ -56,6 +56,7 @@ local function BuildDestinationList()
    lstDungeonsByName["DC2"]   = lstDungeonsByName["Dungeon: Darkshade Caverns II"]
    lstDungeonsByName["EH2"]   = lstDungeonsByName["Dungeon: Elden Hollow II"]
    lstDungeonsByName["FG2"]   = lstDungeonsByName["Dungeon: Fungal Grotto II"]
+   lstDungeonsByName["SC2"]   = lstDungeonsByName["Dungeon: Spindleclutch II"]
    lstDungeonsByName["SP2"]   = lstDungeonsByName["Dungeon: Spindleclutch II"]
    lstDungeonsByName["CA2"]   = lstDungeonsByName["Dungeon: City of Ash II"]
    lstDungeonsByName["COA2"]  = lstDungeonsByName["Dungeon: City of Ash II"]
@@ -93,18 +94,25 @@ local function GetRandomNodeFromList(lstNodes)
    end
    return nodeIndex
 end
-local function FindNodesByName(txt)
-   Log("FindNodesByName",txt,lstDungeonsByName)
+local function FindNodesByName(txt, lstNodesFound)
+   Log("FindNodesByName",txt)
+   lstNodesFound = lstNodesFound or {}
+   local preSep, postSep = txt:match("([^,]*),(.*)")
+   Log("FindNodesByName","Sep",preSep,postSep)
+   if preSep and postSep then
+      txt = preSep
+      lstNodesFound = FindNodesByName(postSep, lstNodesFound)
+   end
+
    txt = string.upper(txt or "")
    local nodeFound = lstDungeonsByName[txt]
-   Log("FindNodesByName",txt,nodeFound)
-   if nodeFound then return {[nodeFound] = nodeFound} end
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end -- if nodeFound then return {[nodeFound] = nodeFound} end
    txt = string.gsub(txt, " ", "")
    nodeFound = lstDungeonsByName[txt]
-   if nodeFound then return {[nodeFound] = nodeFound} end
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end -- if nodeFound then return {[nodeFound] = nodeFound} end
    txt = string.gsub(txt, "1", "")
    nodeFound = lstDungeonsByName[txt]
-   if nodeFound then return {[nodeFound] = nodeFound} end
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end -- if nodeFound then return {[nodeFound] = nodeFound} end
    local level = 1
    if string.find(txt, "2") or string.find(txt, "II") then
       txt = string.gsub(txt, "2", "")
@@ -113,21 +121,20 @@ local function FindNodesByName(txt)
    elseif string.find(txt, "1") then
       txt = string.gsub(txt, "1", "")
    end
-   local retval = {}
    if level == 2 then
       for nodeName, nodeIndex in pairs(lstDungeonsByName) do
          if string.find(nodeName, "II") and string.find(nodeName, txt) then
-            retval[nodeIndex] = nodeIndex
+            lstNodesFound[nodeIndex] = nodeIndex
          end
       end
    else
       for nodeName, nodeIndex in pairs(lstDungeonsByName) do
          if not string.find(nodeName, "II") and string.find(nodeName, txt) then
-            retval[nodeIndex] = nodeIndex
+            lstNodesFound[nodeIndex] = nodeIndex
          end
       end
    end
-   return retval
+   return lstNodesFound
 end
 local function OnGroupInviteReceived(eventCode, inviteCharacterName, inviterDisplayName)
    for _, autoAcceptPartyName in pairs(lstAlwaysAccept) do
