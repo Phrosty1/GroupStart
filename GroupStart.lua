@@ -1,310 +1,326 @@
--- test comment
--- For menu & data
 GroupStart = {}
-GroupStart.savedVars = {}
-GroupStart.globalSavedVars = {}
-
 local ADDON_NAME = "GroupStart"
-GroupStart.name = "GroupStart"
-GroupStart.partyList = {"@Samantha.C", "@Tommy.C", "@Jenniami", "@Phrosty1"}
-GroupStart.doInvite = false
-GroupStart.inviteDelay = 2000
-GroupStart.doInviteStagger = true
-GroupStart.dungeons = {
-	[184] = {fullname="Dungeon: Vaults of Madness",     shortnames={"VM", "VOM"}},
-	[185] = {fullname="Dungeon: Selene's Web",          shortnames={"SW"}},
-	[186] = {fullname="Dungeon: Blackheart Haven",      shortnames={"BH"}},
-	[187] = {fullname="Dungeon: Blessed Crucible",      shortnames={"BLCR"}},
-	[188] = {fullname="Dungeon: Tempest Island",        shortnames={"TI"}},
-	[192] = {fullname="Dungeon: Arx Corinium",          shortnames={"AC"}},
-	[195] = {fullname="Dungeon: Direfrost Keep",        shortnames={"DK"}},
-	[196] = {fullname="Dungeon: Volenfell",             shortnames={"VF"}},
-	[236] = {fullname="Dungeon: Imperial City Prison",  shortnames={"ICP"}},
-	[247] = {fullname="Dungeon: White-Gold Tower",      shortnames={"WGT"}},
-	[260] = {fullname="Dungeon: Ruins of Mazzatun",     shortnames={"RM"}},
-	[261] = {fullname="Dungeon: Cradle of Shadows",     shortnames={"CS"}},
-	[326] = {fullname="Dungeon: Bloodroot Forge",       shortnames={"BF"}},
-	[332] = {fullname="Dungeon: Falkreath Hold",        shortnames={"FH"}},
-	[341] = {fullname="Dungeon: Fang Lair",             shortnames={"FL"}},
-	[363] = {fullname="Dungeon: Scalecaller Peak",      shortnames={"SCP"}},
-	[370] = {fullname="Dungeon: March of Sacrifices",   shortnames={"MS"}},
-	[391] = {fullname="Dungeon: Moongrave Fane",        shortnames={"MF", "MOONGRAVE"}},
-	[371] = {fullname="Dungeon: Moon Hunter Keep",      shortnames={"MHK", "MOONHUNTER"}},
-	[389] = {fullname="Dungeon: Frostvault",            shortnames={"FV"}},
-	[390] = {fullname="Dungeon: Depths of Malatar",     shortnames={"DM"}},
-	[398] = {fullname="Dungeon: Lair of Maarselok",     shortnames={"LM"}},
-	[194] = {fullname="Dungeon: The Banished Cells I",  shortnames={"BC"}},
-	[189] = {fullname="Dungeon: Wayrest Sewers I",      shortnames={"WS"}},
-	[198] = {fullname="Dungeon: Darkshade Caverns I",   shortnames={"DC"}},
-	[191] = {fullname="Dungeon: Elden Hollow I",        shortnames={"EH"}},
-	[ 98] = {fullname="Dungeon: Fungal Grotto I",       shortnames={"FG"}},
-	[193] = {fullname="Dungeon: Spindleclutch I",       shortnames={"SP"}},
-	[197] = {fullname="Dungeon: City of Ash I",         shortnames={"CA", "COA"}},
-	[190] = {fullname="Dungeon: Crypt of Hearts I",     shortnames={"CH", "COH"}},
-	[230] = {fullname="Trial: Hel Ra Citadel",          shortnames={""}},
-	[231] = {fullname="Trial: Aetherian Archive",       shortnames={""}},
-	[232] = {fullname="Trial: Sanctum Ophidia",         shortnames={""}},
-	[258] = {fullname="Trial: Maw of Lorkhaj",          shortnames={""}},
-	[331] = {fullname="Trial: Halls of Fabrication",    shortnames={""}},
-	[346] = {fullname="Trial: Asylum Sanctorium",       shortnames={""}},
-	[364] = {fullname="Trial: Cloudrest",               shortnames={""}},
-	[399] = {fullname="Trial: Sunspire",                shortnames={""}},
-	[424] = {fullname="Dungeon: Icereach",              shortnames={"IR"}},
-	[425] = {fullname="Dungeon: Unhallowed Grave",      shortnames={"UG"}},
-	[435] = {fullname="Dungeon: Stone Garden",          shortnames={"SG"}},
-	[436] = {fullname="Dungeon: Castle Thorn",          shortnames={"CT"}}}
-
-GroupStart.dungeons2 = {
-	[262] = {fullname="Dungeon: The Banished Cells II", shortnames={"BC"}},
-	[263] = {fullname="Dungeon: Wayrest Sewers II",     shortnames={"WS"}},
-	[264] = {fullname="Dungeon: Darkshade Caverns II",  shortnames={"DC"}},
-	[265] = {fullname="Dungeon: Elden Hollow II",       shortnames={"EH"}},
-	[266] = {fullname="Dungeon: Fungal Grotto II",      shortnames={"FG"}},
-	[267] = {fullname="Dungeon: Spindleclutch II",      shortnames={"SP"}},
-	[268] = {fullname="Dungeon: City of Ash II",        shortnames={"CA", "COA"}},
-	[269] = {fullname="Dungeon: Crypt of Hearts II",    shortnames={"CH", "COH"}}}
-
-local ms_time = GetGameTimeMilliseconds()
-local function dmsg(txt)
-	d((GetGameTimeMilliseconds() - ms_time) .. ") " .. txt)
-	ms_time = GetGameTimeMilliseconds()
+local verbose = true
+local function Log(...)
+   if verbose and AnyAltLogger then AnyAltLogger:Log(ADDON_NAME, ...) end
 end
-
-function Trim(s) return (s:gsub("^%s*(.-)%s*$", "%1")) end
-function GroupStart.IsInList(list, item)
-	for index, value in ipairs(list) do
-		if value == item then return true end
-	end
-	return false
+local lstAlwaysAccept = {"@Samantha.C", "@Tommy.C", "@Jenniami", "@Phrosty1"}
+local doDisbandBeforeInvites = true -- true false
+local playerDispName = GetUnitDisplayName("player")
+local lstDungeonsByName = {}
+local lstDungeonsByNode = {}
+local lstBaseGameDungeonNodesByName, lstDLCDungeonNodesByName = {}, {}
+local lstTravelSpotsByName, lstTravelSpotsByNode = {}, {}
+local function BuildDestinationList()
+   for i = 0, GetNumFastTravelNodes() do
+      local isKnown, nodeName, normalizedX, normalizedY, icon, glowIcon, poiType, isShownInCurrentMap, linkedCollectibleIsLocked = GetFastTravelNodeInfo(i)
+      if string.find(nodeName, "Dungeon:") or string.find(nodeName, "Trial:") then
+         lstDungeonsByName[nodeName] = i
+         lstDungeonsByName[string.upper(string.gsub(nodeName, " ", ""))] = i
+         lstDungeonsByNode[i] = nodeName
+      end
+      if poiType > 0 and nodeName ~= "" then
+         lstTravelSpotsByName[nodeName] = i
+         lstTravelSpotsByName[string.upper(string.gsub(nodeName, " ", ""))] = i
+         lstTravelSpotsByNode[i] = nodeName
+      end
+      --Log(i, isKnown, nodeName, normalizedX, normalizedY, icon, glowIcon, poiType, isShownInCurrentMap, linkedCollectibleIsLocked)
+   end
+   lstDungeonsByName["VM"]    = lstDungeonsByName["Dungeon: Vaults of Madness"]
+   lstDungeonsByName["VOM"]   = lstDungeonsByName["Dungeon: Vaults of Madness"]
+   lstDungeonsByName["SW"]    = lstDungeonsByName["Dungeon: Selene's Web"]
+   lstDungeonsByName["BH"]    = lstDungeonsByName["Dungeon: Blackheart Haven"]
+   lstDungeonsByName["BLCR"]  = lstDungeonsByName["Dungeon: Blessed Crucible"]
+   lstDungeonsByName["TI"]    = lstDungeonsByName["Dungeon: Tempest Island"]
+   lstDungeonsByName["AC"]    = lstDungeonsByName["Dungeon: Arx Corinium"]
+   lstDungeonsByName["DK"]    = lstDungeonsByName["Dungeon: Direfrost Keep"]
+   lstDungeonsByName["VF"]    = lstDungeonsByName["Dungeon: Volenfell"]
+   lstDungeonsByName["ICP"]   = lstDungeonsByName["Dungeon: Imperial City Prison"]
+   lstDungeonsByName["WGT"]   = lstDungeonsByName["Dungeon: White-Gold Tower"]
+   lstDungeonsByName["RM"]    = lstDungeonsByName["Dungeon: Ruins of Mazzatun"]
+   lstDungeonsByName["CS"]    = lstDungeonsByName["Dungeon: Cradle of Shadows"]
+   lstDungeonsByName["BF"]    = lstDungeonsByName["Dungeon: Bloodroot Forge"]
+   lstDungeonsByName["FH"]    = lstDungeonsByName["Dungeon: Falkreath Hold"]
+   lstDungeonsByName["FL"]    = lstDungeonsByName["Dungeon: Fang Lair"]
+   lstDungeonsByName["SCP"]   = lstDungeonsByName["Dungeon: Scalecaller Peak"]
+   lstDungeonsByName["MS"]    = lstDungeonsByName["Dungeon: March of Sacrifices"]
+   lstDungeonsByName["MF"]    = lstDungeonsByName["Dungeon: Moongrave Fane"]
+   lstDungeonsByName["MHK"]   = lstDungeonsByName["Dungeon: Moon Hunter Keep"]
+   lstDungeonsByName["FV"]    = lstDungeonsByName["Dungeon: Frostvault"]
+   lstDungeonsByName["DM"]    = lstDungeonsByName["Dungeon: Depths of Malatar"]
+   lstDungeonsByName["LM"]    = lstDungeonsByName["Dungeon: Lair of Maarselok"]
+   lstDungeonsByName["BC"]    = lstDungeonsByName["Dungeon: The Banished Cells I"]
+   lstDungeonsByName["WS"]    = lstDungeonsByName["Dungeon: Wayrest Sewers I"]
+   lstDungeonsByName["DC"]    = lstDungeonsByName["Dungeon: Darkshade Caverns I"]
+   lstDungeonsByName["EH"]    = lstDungeonsByName["Dungeon: Elden Hollow I"]
+   lstDungeonsByName["FG"]    = lstDungeonsByName["Dungeon: Fungal Grotto I"]
+   lstDungeonsByName["SC"]    = lstDungeonsByName["Dungeon: Spindleclutch I"]
+   lstDungeonsByName["SP"]    = lstDungeonsByName["Dungeon: Spindleclutch I"]
+   lstDungeonsByName["CA"]    = lstDungeonsByName["Dungeon: City of Ash I"]
+   lstDungeonsByName["COA"]   = lstDungeonsByName["Dungeon: City of Ash I"]
+   lstDungeonsByName["CH"]    = lstDungeonsByName["Dungeon: Crypt of Hearts I"]
+   lstDungeonsByName["COH"]   = lstDungeonsByName["Dungeon: Crypt of Hearts I"]
+   lstDungeonsByName["BC2"]   = lstDungeonsByName["Dungeon: The Banished Cells II"]
+   lstDungeonsByName["WS2"]   = lstDungeonsByName["Dungeon: Wayrest Sewers II"]
+   lstDungeonsByName["DC2"]   = lstDungeonsByName["Dungeon: Darkshade Caverns II"]
+   lstDungeonsByName["EH2"]   = lstDungeonsByName["Dungeon: Elden Hollow II"]
+   lstDungeonsByName["FG2"]   = lstDungeonsByName["Dungeon: Fungal Grotto II"]
+   lstDungeonsByName["SC2"]   = lstDungeonsByName["Dungeon: Spindleclutch II"]
+   lstDungeonsByName["SP2"]   = lstDungeonsByName["Dungeon: Spindleclutch II"]
+   lstDungeonsByName["CA2"]   = lstDungeonsByName["Dungeon: City of Ash II"]
+   lstDungeonsByName["COA2"]  = lstDungeonsByName["Dungeon: City of Ash II"]
+   lstDungeonsByName["CH2"]   = lstDungeonsByName["Dungeon: Crypt of Hearts II"]
+   lstDungeonsByName["COH2"]  = lstDungeonsByName["Dungeon: Crypt of Hearts II"]
+   lstDungeonsByName["IR"]    = lstDungeonsByName["Dungeon: Icereach"]
+   lstDungeonsByName["UG"]    = lstDungeonsByName["Dungeon: Unhallowed Grave"]
+   lstDungeonsByName["SG"]    = lstDungeonsByName["Dungeon: Stone Garden"]
+   lstDungeonsByName["CT"]    = lstDungeonsByName["Dungeon: Castle Thorn"]
+   local lstBaseGameDungeonNames = {"Dungeon: Vaults of Madness", "Dungeon: Selene's Web", "Dungeon: Blackheart Haven", "Dungeon: Blessed Crucible", "Dungeon: Tempest Island", "Dungeon: Arx Corinium", "Dungeon: Direfrost Keep", "Dungeon: Volenfell", "Dungeon: The Banished Cells I", "Dungeon: Wayrest Sewers I", "Dungeon: Darkshade Caverns I", "Dungeon: Elden Hollow I", "Dungeon: Fungal Grotto I", "Dungeon: Spindleclutch I", "Dungeon: City of Ash I", "Dungeon: Crypt of Hearts I", "Dungeon: The Banished Cells II", "Dungeon: Wayrest Sewers II", "Dungeon: Darkshade Caverns II", "Dungeon: Elden Hollow II", "Dungeon: Fungal Grotto II", "Dungeon: Spindleclutch II", "Dungeon: City of Ash II", "Dungeon: Crypt of Hearts II"}
+   for _, dungeonName in pairs(lstBaseGameDungeonNames) do
+      local nodeFound = lstDungeonsByName[dungeonName]
+      if nodeFound then lstBaseGameDungeonNodesByName[dungeonName] = nodeFound end
+   end
+   for dungeonName, dungeonNode in pairs(lstDungeonsByName) do
+      if string.find(dungeonName, "Dungeon:") and not lstBaseGameDungeonNodesByName[dungeonName] then
+         lstDLCDungeonNodesByName[dungeonName] = dungeonNode
+      end
+   end
 end
-
-function GroupStart.OnGroupInviteReceived(eventCode, inviteCharacterName, inviterDisplayName)
-	--d("OnGroupInviteReceived".." eventCode:"..eventCode.." inviteCharacterName:"..inviteCharacterName.." inviterDisplayName:"..inviterDisplayName)
-	-- eventCode: 131191 inviteCharacterName: Hadara Hazelwood inviterDisplayName: @Samantha.C
-	if GroupStart.IsInList (GroupStart.partyList, inviterDisplayName) then
-        AcceptGroupInvite()
-    end
+local function GetFirstNodeFromList(lstNodes)
+   for nodeIndex, _ in pairs(lstNodes) do
+      return nodeIndex
+   end
 end
-
-function GroupStart.DeterminePlace(location)
-	level = 1
-	if string.find(location, "2") or string.find(location, "II") then
-		location = string.gsub(location, "2", "")
-		location = string.gsub(location, "II", "")
-		level = 2
-	elseif string.find(location, "1") then
-		location = string.gsub(location, "1", "")
-	end
-	location = Trim(location)
-	--dmsg("location:"..location.." level:"..level)
-	upperLocation = string.upper(location)
-	if level == 2 then -- shortname
-		for nodeIndex, dungeon in pairs(GroupStart.dungeons2) do
-			if GroupStart.IsInList (dungeon.shortnames, upperLocation) then
-				return nodeIndex, dungeon
-			end
-		end
-	else
-		for nodeIndex, dungeon in pairs(GroupStart.dungeons) do
-			if GroupStart.IsInList (dungeon.shortnames, upperLocation) then
-				return nodeIndex, dungeon
-			end
-		end
-	end
-	if level == 2 then -- fullname
-		for nodeIndex, dungeon in pairs(GroupStart.dungeons2) do
-			if string.find(string.upper(dungeon.fullname), upperLocation) then
-				return nodeIndex, dungeon
-			end
-		end
-	else
-		for nodeIndex, dungeon in pairs(GroupStart.dungeons) do
-			if string.find(string.upper(dungeon.fullname), upperLocation) then
-				return nodeIndex, dungeon
-			end
-		end
-	end
-	return false
+local function GetRandomNodeFromList(lstNodes)
+   Log("GetRandomNodeFromList",lstNodes)
+   local keyset = {}
+   for k in pairs(lstNodes) do
+      table.insert(keyset, k)
+   end
+   local cntOptions = #keyset
+   Log("GetRandomNodeFromList","cntOptions",cntOptions,"keyset",keyset)
+   local nodeIndex
+   if cntOptions > 1 then
+      local rnd = math.random(cntOptions)
+      nodeIndex = keyset[rnd]
+      d("Choosing from:")
+      for k, v in ipairs(keyset) do
+         d(tostring(k).." - "..tostring(lstDungeonsByNode[v]))
+      end
+      Log("GetRandomNodeFromList","rnd",rnd,"nodeIndex",nodeIndex)
+   elseif cntOptions == 1 then
+      nodeIndex = keyset[1]
+   end
+   return nodeIndex
 end
-
-function GroupStart.TravelToPlace(location)
-	nodeIndex, dungeon = GroupStart.DeterminePlace(location)
-	if nodeIndex then
-		d("Traveling to "..dungeon.fullname)
-		GroupStart.doInvite = true
-		FastTravelToNode(nodeIndex)
-	else
-		d("Could not determine destination")
-	end
+local function FindNodesByName(txt, lstNodesFound)
+   Log("FindNodesByName",txt)
+   lstNodesFound = lstNodesFound or {}
+   local preSep, postSep = txt:match("([^,]*),(.*)")
+   Log("FindNodesByName","Sep",preSep,postSep)
+   if preSep and postSep then
+      txt = preSep
+      lstNodesFound = FindNodesByName(postSep, lstNodesFound)
+   end
+   --
+   txt = string.upper(txt or "")
+   local nodeFound = lstDungeonsByName[txt]
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end
+   txt = string.gsub(txt, " ", "")
+   nodeFound = lstDungeonsByName[txt]
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end
+   txt = string.gsub(txt, "1", "")
+   nodeFound = lstDungeonsByName[txt]
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end
+   --
+   if txt=="BASE" then --local lstBaseGameDungeonNodesByName, lstDLCDungeonNodesByName = {}, {}
+      for dungeonName, nodeFound in pairs(lstBaseGameDungeonNodesByName) do
+         lstNodesFound[nodeFound] = nodeFound
+      end
+      return lstNodesFound
+   elseif txt=="DLC" then
+      for dungeonName, nodeFound in pairs(lstDLCDungeonNodesByName) do
+         lstNodesFound[nodeFound] = nodeFound
+      end
+      return lstNodesFound
+   end
+   --
+   local level = 1
+   if string.find(txt, "2") or string.find(txt, "II") then
+      txt = string.gsub(txt, "2", "")
+      txt = string.gsub(txt, "II", "")
+      level = 2
+   elseif string.find(txt, "1") then
+      txt = string.gsub(txt, "1", "")
+   end
+   if level == 2 then
+      for nodeName, nodeIndex in pairs(lstDungeonsByName) do
+         if string.find(nodeName, "II") and string.find(nodeName, txt) then
+            lstNodesFound[nodeIndex] = nodeIndex
+         end
+      end
+   else
+      for nodeName, nodeIndex in pairs(lstDungeonsByName) do
+         if not string.find(nodeName, "II") and string.find(nodeName, txt) then
+            lstNodesFound[nodeIndex] = nodeIndex
+         end
+      end
+   end
+   return lstNodesFound
 end
-
--- EVENT_GROUP_INVITE_RESPONSE (number eventCode, string inviterName, GroupInviteResponse response, string inviterDisplayName)
-function GroupStart.OnGroupInviteResponse(eventCode, inviterName, response, inviterDisplayName)
-	d("--- OnGroupInviteResponse Begin")
-	local responsemsg = {
-		[GROUP_INVITE_RESPONSE_ACCEPTED] = "GROUP_INVITE_RESPONSE_ACCEPTED",
-		[GROUP_INVITE_RESPONSE_ALREADY_GROUPED] = "GROUP_INVITE_RESPONSE_ALREADY_GROUPED",
-		[GROUP_INVITE_RESPONSE_CANNOT_CREATE_GROUPS] = "GROUP_INVITE_RESPONSE_CANNOT_CREATE_GROUPS",
-		[GROUP_INVITE_RESPONSE_CONSIDERING_OTHER] = "GROUP_INVITE_RESPONSE_CONSIDERING_OTHER",
-		[GROUP_INVITE_RESPONSE_DECLINED] = "GROUP_INVITE_RESPONSE_DECLINED",
-		[GROUP_INVITE_RESPONSE_GENERIC_JOIN_FAILURE] = "GROUP_INVITE_RESPONSE_GENERIC_JOIN_FAILURE",
-		[GROUP_INVITE_RESPONSE_GROUP_FULL] = "GROUP_INVITE_RESPONSE_GROUP_FULL",
-		[GROUP_INVITE_RESPONSE_IGNORED] = "GROUP_INVITE_RESPONSE_IGNORED",
-		[GROUP_INVITE_RESPONSE_INVITED] = "GROUP_INVITE_RESPONSE_INVITED",
-		[GROUP_INVITE_RESPONSE_IN_BATTLEGROUND] = "GROUP_INVITE_RESPONSE_IN_BATTLEGROUND",
-		[GROUP_INVITE_RESPONSE_ONLY_LEADER_CAN_INVITE] = "GROUP_INVITE_RESPONSE_ONLY_LEADER_CAN_INVITE",
-		[GROUP_INVITE_RESPONSE_OTHER_ALLIANCE] = "GROUP_INVITE_RESPONSE_OTHER_ALLIANCE",
-		[GROUP_INVITE_RESPONSE_PLAYER_NOT_FOUND] = "GROUP_INVITE_RESPONSE_PLAYER_NOT_FOUND",
-		[GROUP_INVITE_RESPONSE_REQUEST_FAIL_ALREADY_GROUPED] = "GROUP_INVITE_RESPONSE_REQUEST_FAIL_ALREADY_GROUPED",
-		[GROUP_INVITE_RESPONSE_REQUEST_FAIL_GROUP_FULL] = "GROUP_INVITE_RESPONSE_REQUEST_FAIL_GROUP_FULL",
-		[GROUP_INVITE_RESPONSE_SELF_INVITE] = "GROUP_INVITE_RESPONSE_SELF_INVITE"}
-	d("eventCode: "..tostring(eventCode))
-	d("inviterName: "..tostring(inviterName))
-	d("response: "..tostring(response))
-	d("responsemsg: "..tostring(responsemsg[response]))
-	d("inviterDisplayName: "..tostring(inviterDisplayName))
-	-- GroupStart.UnitInfo(inviterDisplayName)
-	if not GroupStart.doInviteStagger then 
-		if response == GROUP_INVITE_RESPONSE_ACCEPTED then
-			GroupStart.InviteGroupNextMember()
-		else
-			zo_callLater(function() GroupStart.InviteGroupNextMember() end, GroupStart.inviteDelay)
-		end
-	end
-	d("--- OnGroupInviteResponse End")
+local function OnGroupInviteReceived(eventCode, inviteCharacterName, inviterDisplayName)
+   for _, autoAcceptPartyName in pairs(lstAlwaysAccept) do
+      if autoAcceptPartyName == inviterDisplayName then
+         AcceptGroupInvite()
+      end
+   end
 end
-
-function GroupStart.InviteGroupStagger()
-	dmsg("InviteGroupStagger")
-	user = GetDisplayName()
-	local delaymultiplier = 0
-	d("IsUnitGrouped: "..tostring(IsUnitGrouped("player")))
-	d("IsUnitGroupLeader: "..tostring(IsUnitGroupLeader("player")))
-	if IsUnitGrouped("player") and not IsUnitGroupLeader("player") then return end
-	local numFriends = GetNumFriends()
-	for j = 0, numFriends do
-		local invitee, note, playerStatus, secsSinceLogoff = GetFriendInfo(j)
-		local inList = GroupStart.IsInList (GroupStart.partyList, invitee)
-		local inGroup = IsPlayerInGroup(invitee)
-		if inList then
-			d("--- Friend : "..tostring(invitee).."  status : "..tostring(playerStatus).."  inGroup : "..tostring(inGroup))
-			if playerStatus == PLAYER_STATUS_ONLINE then
-				if not inGroup then
-					zo_callLater(function() GroupInviteByName(invitee) end, delaymultiplier * GroupStart.inviteDelay)
-					delaymultiplier = delaymultiplier + 1
-				end
-			end
-		end
-	end
+local doSendInvitesWhenLanded = false
+local lstPendingInvites = {}
+local function GeneratePendingInvites()
+   -- * JumpToGroupMember(*string* _characterOrDisplayName_)
+   Log("GeneratePendingInvites",playerDispName,lstAlwaysAccept)
+   lstPendingInvites = {}
+   for _, autoAcceptPartyName in pairs(lstAlwaysAccept) do
+      if not IsPlayerInGroup(autoAcceptPartyName) then -- * IsPlayerInGroup(*string* _characterOrDisplayName_) ** _Returns:_ *bool* _inGroup_
+         lstPendingInvites[autoAcceptPartyName] = true
+      end
+   end
+   lstPendingInvites[playerDispName] = nil
+   local numFriends = GetNumFriends()
+   for j = 0, numFriends do
+      local invitee, note, playerStatus, secsSinceLogoff = GetFriendInfo(j)
+      if lstPendingInvites[invitee] and not playerStatus == PLAYER_STATUS_ONLINE then lstPendingInvites[invitee] = nil end
+      Log("GeneratePendingInvites","considering_friends_list",invitee, note, playerStatus, secsSinceLogoff, "lstPendingInvites[invitee]",lstPendingInvites[invitee])
+   end
 end
-
-function GroupStart.InviteGroupNextMember()
-	dmsg("Start InviteGroupNextMember")
-	d("IsUnitGrouped: "..tostring(IsUnitGrouped("player")))
-	d("IsUnitGroupLeader: "..tostring(IsUnitGroupLeader("player")))
-	--d("GetGroupLeaderUnitTag: "..tostring(GetGroupLeaderUnitTag()))
-	if IsUnitGrouped("player") and not IsUnitGroupLeader("player") then return end
-	-- local countPendingGroupAccept = GetNumFriends()
-	local numFriends = GetNumFriends()
-	for j = 0, numFriends do
-		local invitee, note, playerStatus, secsSinceLogoff = GetFriendInfo(j)
-		local inList = GroupStart.IsInList (GroupStart.partyList, invitee)
-		local inGroup = IsPlayerInGroup(invitee)
-		if inList then
-			d("--- Friend : "..tostring(invitee).."  status : "..tostring(playerStatus).."  inGroup : "..tostring(inGroup))
-			if playerStatus == PLAYER_STATUS_ONLINE then
-				if not inGroup then
-					GroupInviteByName(invitee)
-					return
-				end
-			end
-		end
-	end
+local function SendInvites()
+   Log("SendInvites",lstPendingInvites)
+   local txtRecipient = ""
+   for invitee, _ in pairs(lstPendingInvites) do
+      if IsPlayerInGroup(invitee) then lstPendingInvites[invitee] = nil else txtRecipient = invitee end
+   end
+   if lstPendingInvites[txtRecipient] then
+      lstPendingInvites[txtRecipient] = nil
+      GroupInviteByName(txtRecipient)
+      zo_callLater(SendInvites, 1000)
+   end
 end
-
-function GroupStart.InviteGroupByMethod()
-	if GroupStart.doInviteStagger then GroupStart.InviteGroupStagger() else GroupStart.InviteGroupNextMember() end
+function GroupStart.GenerateAndSendInvites()
+   GeneratePendingInvites()
+   SendInvites()
 end
-
-function GroupStart.onActivityFinderStatusChange (eventCode, result)
-	if GroupStart.doInvite then
-		EVENT_MANAGER:UnregisterForEvent(GroupStart.name, EVENT_ACTIVITY_FINDER_STATUS_UPDATE)
-		GroupStart.doInvite = false
-		if GroupStart.doInviteStagger then 
-			zo_callLater(function() GroupStart.InviteGroupStagger() end, GroupStart.inviteDelay)
-		else 
-			zo_callLater(function() GroupStart.InviteGroupNextMember() end, GroupStart.inviteDelay)
-		end
-	end
+local function PlayerHasGroupControl()
+   if IsUnitGrouped("player") and not IsUnitGroupLeader("player") then return false else return true end
 end
-
-function GroupStart.StartNormal(location)
-	SetVeteranDifficulty(false)
-	dmsg("Set to Normal")
-	if Trim(location) == "" then
-		GroupStart.InviteGroupByMethod()
-	else
-		GroupStart.TravelToPlace(location)
-	end
+local function OnLeavingZone(eventCode, result)
+   Log("OnLeavingZone",result)
+   if doSendInvitesWhenLanded then
+      doSendInvitesWhenLanded = false
+      if PlayerHasGroupControl() then
+         GeneratePendingInvites()
+         SendInvites()
+      end
+   end
 end
-
-function GroupStart.StartVeteran(location)
-	SetVeteranDifficulty(true)
-	dmsg("Set to Veteran")
-	if Trim(location) == "" then
-		GroupStart.InviteGroupByMethod()
-	else
-		GroupStart.TravelToPlace(location)
-	end
+local function FindAndTravel(location)
+   Log("FindAndTravel",location)
+   local destNodeIndex, destNodeName = GetRandomNodeFromList(FindNodesByName(location))
+   local destNodeName = lstDungeonsByNode[destNodeIndex]
+   if destNodeIndex then
+      d("Traveling to "..destNodeName)
+      doSendInvitesWhenLanded = true
+      if doDisbandBeforeInvites and IsUnitGrouped("player") and PlayerHasGroupControl() then
+         GroupDisband()
+         zo_callLater(function() FastTravelToNode(destNodeIndex) end, 500)
+      else
+         FastTravelToNode(destNodeIndex)
+      end
+   else
+      Log("Could not determine destination")
+      d("Could not determine destination")
+   end
 end
-
-function GroupStart.SetDelay(delay)
-	GroupStart.inviteDelay = tonumber(delay)
-	if not (GroupStart.inviteDelay ~= nil and GroupStart.inviteDelay > 0) then GroupStart.inviteDelay = 1000 end
-	d("Delay set to "..tostring(GroupStart.inviteDelay))
+local function StartNormal(location)
+   Log("StartNormal",location)
+   if PlayerHasGroupControl() then SetVeteranDifficulty(false) end
+   FindAndTravel(location)
 end
+local function StartVeteran(location)
+   Log("StartVeteran",location)
+   if PlayerHasGroupControl() then SetVeteranDifficulty(true) end
+   FindAndTravel(location)
+end
+local function FindAnyNodesByName(txt, lstNodesFound)
+   Log("FindAnyNodesByName",txt)
+   lstNodesFound = lstNodesFound or {}
+   local preSep, postSep = txt:match("([^,]*),(.*)")
+   Log("FindAnyNodesByName","Sep",preSep,postSep)
+   if preSep and postSep then
+      txt = preSep
+      lstNodesFound = FindAnyNodesByName(postSep, lstNodesFound)
+   end
 
-function GroupStart.SetMethod(method)
-	if method == "stagger" then
-		GroupStart.doInviteStagger = true
-		d("Method set to stagger")
-	else
-		GroupStart.doInviteStagger = false
-		d("Method set to sequential")
-	end
+   txt = string.upper(txt or "")
+   local nodeFound = lstTravelSpotsByName[txt]
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end
+   txt = string.gsub(txt, " ", "")
+   nodeFound = lstTravelSpotsByName[txt]
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end
+   txt = string.gsub(txt, "1", "")
+   nodeFound = lstTravelSpotsByName[txt]
+   if nodeFound then lstNodesFound[nodeFound] = nodeFound return lstNodesFound end
+   for nodeName, nodeIndex in pairs(lstTravelSpotsByName) do
+      if not string.find(nodeName, "II") and string.find(nodeName, txt) then
+         lstNodesFound[nodeIndex] = nodeIndex
+      end
+   end
+   return lstNodesFound
+end
+local function FindAnyAndTravel(location)
+   Log("FindAnyAndTravel",location)
+   local destNodeIndex, destNodeName = GetRandomNodeFromList(FindAnyNodesByName(location))
+   local destNodeName = lstTravelSpotsByNode[destNodeIndex]
+   if destNodeIndex then
+      d("Traveling to "..destNodeName)
+      --doSendInvitesWhenLanded = true
+      if doDisbandBeforeInvites and IsUnitGrouped("player") and PlayerHasGroupControl() then
+         GroupDisband()
+         zo_callLater(function() FastTravelToNode(destNodeIndex) end, 500)
+      else
+         FastTravelToNode(destNodeIndex)
+      end
+   else
+      Log("Could not determine destination")
+      d("Could not determine destination")
+   end
+end
+local function StartAny(location)
+   Log("StartAny",location)
+   FindAnyAndTravel(location, lstTravelSpotsByName, lstTravelSpotsByNode)
 end
 
 function GroupStart:Initialize()
-    --self.sV = ZO_SavedVars:NewAccountWide("GroupStartSavedVariables", 8, nil, {})
-    --zo_callLater(function() self:ExportAll() end,20*1000)
-    --EVENT_MANAGER:RegisterForUpdate(self.name, 5*60*1000, function() self:ExportAll() end)
-    --EVENT_MANAGER:RegisterForEvent(self.name, EVENT_PLAYER_ACTIVATED, function() self:ExportAll() end)
-    --EVENT_MANAGER:RegisterForEvent(self.name, EVENT_PLAYER_DEACTIVATED, function() self:ExportAll() end)
-	EVENT_MANAGER:RegisterForEvent(GroupStart.name, EVENT_GROUP_INVITE_RECEIVED, GroupStart.OnGroupInviteReceived)
-	EVENT_MANAGER:UnregisterForEvent(GroupStart.name, EVENT_ACTIVITY_FINDER_STATUS_UPDATE)
-	--EVENT_MANAGER:RegisterForEvent(GroupStart.name, EVENT_ACTIVITY_FINDER_STATUS_UPDATE, GroupStart.onActivityFinderStatusChange)
-	SLASH_COMMANDS["/gsn"] = GroupStart.StartNormal
-	SLASH_COMMANDS["/gsv"] = GroupStart.StartVeteran
-	--SLASH_COMMANDS["/gst"] = function() GroupStart.doInvite = true GroupStart:InviteGroupNextMember() end
-	SLASH_COMMANDS["/gstest"] = GroupStart.InviteGroupByMethod
-	SLASH_COMMANDS["/gsd"] = GroupStart.SetDelay
-	SLASH_COMMANDS["/gsmethod"] = GroupStart.SetMethod
-	EVENT_MANAGER:RegisterForEvent(GroupStart.name, EVENT_ACTIVITY_FINDER_STATUS_UPDATE, GroupStart.onActivityFinderStatusChange)
-	--EVENT_MANAGER:UnregisterForEvent(GroupStart.name, EVENT_ACTIVITY_FINDER_STATUS_UPDATE)
-	--EVENT_MANAGER:RegisterForEvent(GroupStart.name, EVENT_GROUP_INVITE_RESPONSE, GroupStart.OnGroupInviteResponse)
-	
-	--EVENT_MANAGER:RegisterForEvent(GroupStart.name, EVENT_PLAYER_ACTIVATED, GroupStart.InviteGroupNextMember)
+   BuildDestinationList()
+   EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_GROUP_INVITE_RECEIVED, OnGroupInviteReceived)
+   EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ACTIVITY_FINDER_STATUS_UPDATE, function(eventCode, status)
+         if status == ACTIVITY_FINDER_STATUS_READY_CHECK and HasLFGReadyCheckNotification() then
+            AcceptLFGReadyCheckNotification()
+         end
+      end)
+   --EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PREPARE_FOR_JUMP, OnLeavingZone) -- Last event fired when leaving zone... but still not late enough.
+   EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PREPARE_FOR_JUMP, function() zo_callLater(OnLeavingZone, 3000) end) -- Last event fired when leaving zone
+   SLASH_COMMANDS["/gsn"] = StartNormal
+   SLASH_COMMANDS["/gsv"] = StartVeteran
+   SLASH_COMMANDS["/gsa"] = StartAny
+   SLASH_COMMANDS["/gstoggledisband"] = function() if doDisbandBeforeInvites then doDisbandBeforeInvites = false else doDisbandBeforeInvites = true end d("DisbandBeforeInvites set to:"..tostring(doDisbandBeforeInvites)) end
 end
 
 -- Then we create an event handler function which will be called when the "addon loaded" event
 -- occurs. We'll use this to initialize our addon after all of its resources are fully loaded.
 function GroupStart.OnAddOnLoaded(event, addonName)
-    -- The event fires each time *any* addon loads - but we only care about when our own addon loads.
-    if addonName == GroupStart.name then
-        GroupStart:Initialize()
-    end
+    if addonName == ADDON_NAME then GroupStart:Initialize() end
 end
 
 -- Finally, we'll register our event handler function to be called when the proper event occurs.
-EVENT_MANAGER:RegisterForEvent(GroupStart.name, EVENT_ADD_ON_LOADED, GroupStart.OnAddOnLoaded)
-
+EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, GroupStart.OnAddOnLoaded)
