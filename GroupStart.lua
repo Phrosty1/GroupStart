@@ -6,6 +6,7 @@ local function Log(...)
 end
 local lstAlwaysAccept = {"@Samantha.C", "@Tommy.C", "@Jenniami", "@Phrosty1"}
 local doDisbandBeforeInvites = true -- true false
+local doSendInvitesWhenLeading = true -- true false
 local playerDispName = GetUnitDisplayName("player")
 local lstDungeonsByName = {}
 local lstDungeonsByNode = {}
@@ -202,6 +203,7 @@ local function SendInvites()
    end
    if lstPendingInvites[txtRecipient] then
       lstPendingInvites[txtRecipient] = nil
+      Log("SendInvites","GroupInviteByName",txtRecipient)
       GroupInviteByName(txtRecipient)
       zo_callLater(SendInvites, 1000)
    end
@@ -213,8 +215,18 @@ end
 local function PlayerHasGroupControl()
    if IsUnitGrouped("player") and not IsUnitGroupLeader("player") then return false else return true end
 end
-local function OnLeavingZone(eventCode, result)
-   Log("OnLeavingZone",result)
+-- local function OnLeavingZone(eventCode, result)
+--    Log("OnLeavingZone",result)
+--    if doSendInvitesWhenLanded then
+--       doSendInvitesWhenLanded = false
+--       if PlayerHasGroupControl() then
+--          GeneratePendingInvites()
+--          SendInvites()
+--       end
+--    end
+-- end
+local function StartSendingActualInvites()
+   Log("StartSendingActualInvites")
    if doSendInvitesWhenLanded then
       doSendInvitesWhenLanded = false
       if PlayerHasGroupControl() then
@@ -229,7 +241,7 @@ local function FindAndTravel(location)
    local destNodeName = lstDungeonsByNode[destNodeIndex]
    if destNodeIndex then
       d("Traveling to "..destNodeName)
-      doSendInvitesWhenLanded = true
+      if doSendInvitesWhenLeading then doSendInvitesWhenLanded = true end
       if doDisbandBeforeInvites and IsUnitGrouped("player") and PlayerHasGroupControl() then
          GroupDisband()
          zo_callLater(function() FastTravelToNode(destNodeIndex) end, 500)
@@ -283,7 +295,7 @@ local function FindAnyAndTravel(location)
    local destNodeName = lstTravelSpotsByNode[destNodeIndex]
    if destNodeIndex then
       d("Traveling to "..destNodeName)
-      --doSendInvitesWhenLanded = true
+      --if doSendInvitesWhenLeading then doSendInvitesWhenLanded = true end
       if doDisbandBeforeInvites and IsUnitGrouped("player") and PlayerHasGroupControl() then
          GroupDisband()
          zo_callLater(function() FastTravelToNode(destNodeIndex) end, 500)
@@ -297,7 +309,7 @@ local function FindAnyAndTravel(location)
 end
 local function StartAny(location)
    Log("StartAny",location)
-   FindAnyAndTravel(location, lstTravelSpotsByName, lstTravelSpotsByNode)
+   FindAnyAndTravel(location)
 end
 
 function GroupStart:Initialize()
@@ -309,11 +321,15 @@ function GroupStart:Initialize()
          end
       end)
    --EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PREPARE_FOR_JUMP, OnLeavingZone) -- Last event fired when leaving zone... but still not late enough.
-   EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PREPARE_FOR_JUMP, function() zo_callLater(OnLeavingZone, 3000) end) -- Last event fired when leaving zone
+   --EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PREPARE_FOR_JUMP, function() zo_callLater(OnLeavingZone, 3000) end) -- Last event fired when leaving zone
+   EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ZONE_CHANGED, StartSendingActualInvites)
+   EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PLAYER_ACTIVATED, StartSendingActualInvites)
+
    SLASH_COMMANDS["/gsn"] = StartNormal
    SLASH_COMMANDS["/gsv"] = StartVeteran
    SLASH_COMMANDS["/gsa"] = StartAny
    SLASH_COMMANDS["/gstoggledisband"] = function() if doDisbandBeforeInvites then doDisbandBeforeInvites = false else doDisbandBeforeInvites = true end d("DisbandBeforeInvites set to:"..tostring(doDisbandBeforeInvites)) end
+   SLASH_COMMANDS["/gstoggleinvites"] = function() if doSendInvitesWhenLeading then doSendInvitesWhenLeading = false else doSendInvitesWhenLeading = true end d("SendInvitesWhenLeading set to:"..tostring(doSendInvitesWhenLeading)) end
 end
 
 -- Then we create an event handler function which will be called when the "addon loaded" event
